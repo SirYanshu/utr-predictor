@@ -24,6 +24,10 @@ app.use(
   }),
 );
 
+app.get('/healthz', (req, res) => {
+  res.status(200).send('OK');
+});
+
 app.use((req, res, next) => {
   angularApp
     .handle(req)

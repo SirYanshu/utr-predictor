@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "build:ssr": "ng build --configuration=production && ng build --configuration=server",
+    "build:ssr": "ng build && ng run utr-predictor:server",
     "serve:ssr": "node dist/utr-predictor/server/main.server.mjs"
   },
   "prettier": {
