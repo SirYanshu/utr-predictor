@@ -1,0 +1,182 @@
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🎾 UTR Rating Calculator</h1>
+      <p>Upload your match data and calculate your future UTR rating</p>
+    </div>
+  
+    <!-- File Upload Section -->
+    <div class="card">
+      <h2>1. Upload Match Data</h2>
+      <div class="upload-section" 
+           (click)="fileInput.click()" 
+           (drop)="onFileDrop($event)" 
+           (dragover)="onDragOver($event)">
+        <div class="upload-icon">📁</div>
+        <h3>Drop your HTML file here or click to browse</h3>
+        <p>Upload your tennis match data HTML file</p>
+        <input #fileInput 
+               type="file" 
+               class="file-input" 
+               accept=".html" 
+               (change)="onFileSelected($event)" />
+      </div>
+      
+      <!-- Upload Status -->
+      <div *ngIf="uploadStatus()" class="upload-status">
+        <div [ngClass]="{
+          'success': uploadStatusType() === 'success',
+          'error': uploadStatusType() === 'error',
+          'loading-message': uploadStatusType() === 'loading'
+        }">
+          <span *ngIf="uploadStatusType() === 'loading'" class="loading"></span>
+          <span *ngIf="uploadStatusType() === 'success'">✅</span>
+          <span *ngIf="uploadStatusType() === 'error'">❌</span>
+          {{ uploadStatus() }}
+        </div>
+      </div>
+    </div>
+  
+    <!-- Match History Section -->
+    <div *ngIf="showMatchHistory()" class="card">
+      <h2>2. Your Match History</h2>
+      
+      <!-- Matches Table -->
+      <div class="matches-container">
+        <table class="matches-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Opponent</th>
+              <th>Your UTR</th>
+              <th>Opp UTR</th>
+              <th>Score</th>
+              <th>Win %</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let match of recentMatches()">
+              <td>{{ match.datetime | date:'shortDate' }}</td>
+              <td>{{ match.opponentName }}</td>
+              <td>{{ match.playerUTR | number:'1.2-2' }}</td>
+              <td>{{ match.opponentUTR | number:'1.2-2' }}</td>
+              <td>{{ match.playerGamesWon }}-{{ match.opponentGamesWon }}</td>
+              <td>{{ match.winPercentage }}%</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <p *ngIf="matchData().length > 10" class="matches-info">
+          Showing 10 most recent matches out of {{ matchData().length }} total matches.
+        </p>
+      </div>
+  
+      <!-- Statistics Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-number">{{ totalMatches() }}</div>
+          <div class="stat-label">Total Matches</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">{{ winRate() }}%</div>
+          <div class="stat-label">Win Rate</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">{{ currentRating() | number:'1.2-2' }}</div>
+          <div class="stat-label">Current UTR</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">{{ avgOpponentRating() }}</div>
+          <div class="stat-label">Avg Opponent UTR</div>
+        </div>
+      </div>
+    </div>
+  
+    <!-- Future Rating Calculator -->
+    <div *ngIf="showCalculator()" class="card">
+      <h2>3. Calculate Future Rating</h2>
+      
+      <form (ngSubmit)="calculateFutureRating()" #ratingForm="ngForm">
+        <div class="form-group">
+          <label for="opponentRating">Opponent's UTR Rating:</label>
+          <input type="number" 
+                 id="opponentRating"
+                 name="opponentRating"
+                 [ngModel]="opponentRating()"
+                 (ngModelChange)="opponentRating.set($event)"
+                 step="0.01" 
+                 min="0" 
+                 max="16" 
+                 required 
+                 placeholder="e.g., 4.25"
+                 #opponentRatingInput="ngModel">
+        </div>
+        
+        <div class="form-group">
+          <label for="setScores">Set Scores (comma-separated, format: 6-4, 7-5):</label>
+          <input type="text" 
+                 id="setScores"
+                 name="setScores"
+                 [ngModel]="setScores()"
+                 (ngModelChange)="setScores.set($event)"
+                 required 
+                 placeholder="e.g., 6-4, 7-5, 6-3"
+                 #setScoresInput="ngModel">
+        </div>
+  
+        <div class="form-actions">
+          <button type="submit" 
+                  class="btn btn-primary" 
+                  [disabled]="!ratingForm.form.valid || calculating()">
+            <span *ngIf="calculating()" class="loading"></span>
+            {{ calculating() ? 'Calculating...' : 'Calculate Future Rating' }}
+          </button>
+          
+          <button type="button" 
+                  class="btn btn-secondary" 
+                  (click)="resetForm()">
+            Reset
+          </button>
+        </div>
+      </form>
+  
+      <!-- Calculation Results -->
+      <div *ngIf="calculationResults()" class="result-section">
+        <h3>🎯 Match Analysis</h3>
+        
+        <div class="results-grid">
+          <div class="result-item">
+            <h4>Expected Win %</h4>
+            <div class="result-number">{{ calculationResults()!.expectedResult | number:'1.1-1' }}%</div>
+          </div>
+          <div class="result-item">
+            <h4>Actual Win %</h4>
+            <div class="result-number">{{ calculationResults()!.actualResult | number:'1.1-1' }}%</div>
+          </div>
+          <div class="result-item">
+            <h4>Match Rating</h4>
+            <div class="result-number">{{ calculationResults()!.matchRating | number:'1.2-2' }}</div>
+          </div>
+          <div class="result-item">
+            <h4>Future UTR</h4>
+            <div class="result-number">{{ calculationResults()!.futureRating | number:'1.2-2' }}</div>
+          </div>
+        </div>
+        
+        <div class="analysis-section">
+          <p><strong>Performance Analysis:</strong></p>
+          <p>
+            <span [ngClass]="calculationResults()!.performedBetter ? 'performance-good' : 'performance-below'">
+              {{ calculationResults()!.performedBetter ? '🟢 You performed better than expected!' : '🟡 You performed below expectations.' }}
+            </span>
+          </p>
+          <p>
+            <strong>Rating Change:</strong> 
+            <span [ngClass]="calculationResults()!.ratingChange >= 0 ? 'rating-increase' : 'rating-decrease'">
+              {{ calculationResults()!.ratingChange >= 0 ? '+' : '' }}{{ calculationResults()!.ratingChange | number:'1.2-2' }} points
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
