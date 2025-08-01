@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "utr-calculator": {
+    "utr-predictor": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -58,10 +58,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "utr-calculator:build:production"
+              "buildTarget": "utr-predictor:build:production"
             },
             "development": {
-              "buildTarget": "utr-calculator:build:development"
+              "buildTarget": "utr-predictor:build:development"
             }
           },
           "defaultConfiguration": "development"
