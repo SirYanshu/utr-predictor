@@ -46,6 +46,9 @@
               ],
               "outputHashing": "all"
             },
+            "server": {
+              "outputMode": "server"
+            },
             "development": {
               "optimization": false,
               "extractLicenses": false,
