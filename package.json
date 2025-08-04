@@ -3,11 +3,11 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
-    "build": "ng build",
+    "build": "npm run build:ssr",
+    "start": "npm run serve:ssr",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "build:ssr": "ng build --configuration production && ng run utr-predictor:server:production",
+    "build:ssr": "ng build --configuration production",
     "serve:ssr": "node dist/utr-predictor/server/server.mjs",
     "serve:ssr:utr-predictor": "node dist/utr-predictor/server/server.mjs"
   },
@@ -50,5 +50,8 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
     "typescript": "~5.8.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
