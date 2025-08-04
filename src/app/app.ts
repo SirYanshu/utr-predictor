@@ -1,8 +1,8 @@
+import { RouterOutlet } from '@angular/router';
 
-import { Component } from '@angular/core';
+import { Component, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { signal, computed } from '@angular/core';
 
 interface Match {
   datetime: Date;
@@ -27,16 +27,15 @@ interface CalculationResult {
 
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [
     CommonModule,
-    FormsModule
+    FormsModule,
+    RouterOutlet
   ],
-templateUrl: './app.html',
+  templateUrl: './app.html',
   styleUrl: './app.css'
 })
-
-export class AppComponent {
+export class App {
   // Using Angular signals for reactive state management
   matchData = signal<Match[]>([]);
   currentRating = signal<number>(0);
