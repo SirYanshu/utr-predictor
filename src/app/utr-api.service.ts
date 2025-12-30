@@ -66,7 +66,7 @@ export class UtrApiService {
   
   // Proxy configuration (optional - for local development)
   private readonly USE_PROXY = true; // Set to true to use proxy
-  private readonly PROXY_URL = 'http://localhost:3000/api'; // Your proxy URL
+  private readonly PROXY_URL = 'https://utr-proxy.onrender.com/api';
   
   private tokenSubject = new BehaviorSubject<string | null>(this.getStoredToken());
   public token$ = this.tokenSubject.asObservable();
