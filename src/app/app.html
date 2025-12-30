@@ -2,27 +2,159 @@
 <div class="container">
   <!-- Header -->
   <div class="header">
-    <h1>🎾 UTR Rating Calculator</h1>
-    <p>Upload your match data and calculate your future UTR rating</p>
+    <h1>UTR Assistant</h1>
+    <p>Connect to UTR API and calculate your future rating</p>
   </div>
 
-  <!-- File Upload Section -->
-  <div class="card">
-    <h2>1. Upload Match Data</h2>
-    <div class="upload-section" 
-         (click)="fileInput.click()" 
-         (drop)="onFileDrop($event)" 
-         (dragover)="onDragOver($event)">
-      <div class="upload-icon">📁</div>
-      <h3>Drop your HTML file here or click to browse</h3>
-      <p>Upload your tennis match data HTML file</p>
-      <input #fileInput 
-             type="file" 
-             class="file-input" 
-             accept=".html" 
-             (change)="onFileSelected($event)" />
+  <!-- Authentication Section -->
+  <div *ngIf="showAuthSection()" class="card auth-card">
+    <h2>🔐 Authentication Required</h2>
+    
+    <div class="auth-explainer">
+      <p>
+        <strong>Why do I need this?</strong> UTR Sports doesn't provide a public username/password API. 
+        Instead, you'll copy your authentication token from your browser after logging into UTR Sports.
+      </p>
+      <p class="easy-indicator">✅ It's easy and takes less than 30 seconds!</p>
     </div>
     
+    <div class="auth-steps">
+      <h3>📋 Step-by-Step Instructions:</h3>
+      
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <strong>Log in to UTR Sports</strong>
+          <p>Visit <a href="https://app.utrsports.net" target="_blank" class="utr-link">app.utrsports.net</a> and log in with your username and password</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <strong>Open Developer Tools</strong>
+          <p>Press <kbd>F12</kbd> on your keyboard (or right-click → "Inspect")</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <strong>Navigate to Cookies</strong>
+          <p>Click on <strong>Application</strong> tab → <strong>Storage</strong> → <strong>Cookies</strong> → <strong>https://app.utrsports.net</strong></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <strong>Find the JWT Cookie</strong>
+          <p>Look for a cookie named <code>jwt</code> in the list</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">5</div>
+        <div class="step-content">
+          <strong>Copy the Token</strong>
+          <p>Click on the <code>jwt</code> cookie and copy its <strong>Value</strong> (it's a long string of text)</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-number">6</div>
+        <div class="step-content">
+          <strong>Paste Below</strong>
+          <p>Paste the token in the field below and click "Authenticate"</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Video Tutorial Link -->
+    <div class="video-tutorial">
+      <p>
+        📺 <strong>Need visual help?</strong> 
+        <a href="https://www.youtube.com/results?search_query=how+to+view+browser+cookies+developer+tools" target="_blank">
+          Watch a tutorial on YouTube
+        </a>
+      </p>
+    </div>
+    
+    <div class="jwt-input-section">
+      <div class="form-group">
+        <label for="jwtToken">
+          <strong>Paste Your JWT Token Here:</strong>
+        </label>
+        <textarea 
+          id="jwtToken"
+          [ngModel]="jwtToken()"
+          (ngModelChange)="jwtToken.set($event)"
+          placeholder="Paste the long JWT token value here (starts with 'eyJ...')"
+          class="jwt-textarea"
+          rows="4"></textarea>
+        <small class="hint">The token should start with "eyJ" and be very long (hundreds of characters)</small>
+      </div>
+      
+      <button (click)="setAuthToken()" class="btn btn-primary btn-large">
+        🔓 Authenticate
+      </button>
+    </div>
+
+    <!-- Auth Status Message -->
+    <div *ngIf="authMessage()" class="auth-message">
+      <div [ngClass]="{
+        'success': authMessageType() === 'success',
+        'error': authMessageType() === 'error',
+        'info-message': authMessageType() === 'info'
+      }">
+        {{ authMessage() }}
+      </div>
+    </div>
+
+    <!-- Security Note -->
+    <div class="security-note">
+      <h4>🔒 Security Notes:</h4>
+      <ul>
+        <li>Your token is stored locally in your browser only</li>
+        <li>This app doesn't send your token to any external servers (except UTR API)</li>
+        <li>Tokens typically expire after 24 hours - you'll need to get a new one</li>
+        <li>Never share your JWT token with anyone</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Player Selection Section -->
+  <div *ngIf="isAuthenticated()" class="card">
+    <div class="authenticated-header">
+      <h2>Enter Your Player ID</h2>
+      <button (click)="logout()" class="btn btn-secondary btn-logout">
+        🚪 Logout
+      </button>
+    </div>
+
+    <!-- Player ID Input -->
+    <div class="player-id-section">
+      <div class="search-input-group">
+        <input type="text" 
+               [ngModel]="playerId()"
+               (ngModelChange)="playerId.set($event)"
+               (keyup.enter)="loadPlayerData()"
+               placeholder="Enter your UTR Player ID..."
+               class="search-input">
+        <button (click)="loadPlayerData()" 
+                [disabled]="isLoadingData()"
+                class="btn btn-primary">
+          {{ isLoadingData() ? 'Loading...' : 'Load Data' }}
+        </button>
+      </div>
+      <p class="help-text">
+        💡 <strong>How to find your Player ID:</strong><br>
+        1. Go to your profile on <a href="https://app.utrsports.net" target="_blank">app.utrsports.net</a><br>
+        2. Look at the URL: <code>app.utrsports.net/profiles/<strong>1234567</strong></code><br>
+        3. The number at the end is your Player ID
+      </p>
+    </div>
+
     <!-- Upload Status -->
     <div *ngIf="uploadStatus()" class="upload-status">
       <div [ngClass]="{
@@ -38,64 +170,40 @@
     </div>
   </div>
 
-  <!-- Match History Section -->
-  <div *ngIf="showMatchHistory()" class="card">
-    <h2>2. Your Match History</h2>
-    
-    <!-- Matches Table -->
-    <div class="matches-container">
-      <table class="matches-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Opponent</th>
-            <th>Your UTR</th>
-            <th>Opp UTR</th>
-            <th>Score</th>
-            <th>Win %</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let match of recentMatches()">
-            <td>{{ match.datetime | date:'shortDate' }}</td>
-            <td>{{ match.opponentName }}</td>
-            <td>{{ match.playerUTR | number:'1.2-2' }}</td>
-            <td>{{ match.opponentUTR | number:'1.2-2' }}</td>
-            <td>{{ match.playerGamesWon }}-{{ match.opponentGamesWon }}</td>
-            <td>{{ match.winPercentage }}%</td>
-          </tr>
-        </tbody>
-      </table>
+  <!-- Action Buttons Section -->
+  <div *ngIf="showActionButtons()" class="card action-buttons-card">
+    <h2>What would you like to do?</h2>
+    <div class="action-buttons-section">
+      <button (click)="openTennisWrapped()" class="btn-action btn-wrapped">
+        <span class="action-icon">🎾</span>
+        <span class="action-title">Tennis Wrapped</span>
+        <span class="action-description">View your year in tennis</span>
+      </button>
       
-      <p *ngIf="matchData().length > 10" class="matches-info">
-        Showing 10 most recent matches out of {{ matchData().length }} total matches.
-      </p>
-    </div>
-
-    <!-- Statistics Grid -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-number">{{ totalMatches() }}</div>
-        <div class="stat-label">Total Matches</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number">{{ winRate() }}%</div>
-        <div class="stat-label">Win Rate</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number">{{ currentRating() | number:'1.2-2' }}</div>
-        <div class="stat-label">Current UTR</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-number">{{ avgOpponentRating() }}</div>
-        <div class="stat-label">Avg Opponent UTR</div>
-      </div>
+      <button (click)="openUTRPredictor()" class="btn-action btn-predictor">
+        <span class="action-icon">🎯</span>
+        <span class="action-title">UTR Predictor</span>
+        <span class="action-description">Calculate future rating</span>
+      </button>
     </div>
   </div>
 
+  <!-- Tennis Wrapped Component -->
+  <app-tennis-wrapped 
+    [matches]="matchData()" 
+    [currentRating]="currentRating()">
+  </app-tennis-wrapped>
+
   <!-- Future Rating Calculator -->
-  <div *ngIf="showCalculator()" class="card">
-    <h2>3. Calculate Future Rating</h2>
+  <div *ngIf="showCalculator()" class="card calculator-overlay">
+    <div class="calculator-header">
+      <h2>UTR Predictor Tool</h2>
+      <button (click)="closeUTRPredictor()" class="btn-close">✕</button>
+    </div>
+    <div class="calculator-header">
+      <h2>UTR Predictor Tool</h2>
+      <button (click)="closeUTRPredictor()" class="btn-close">✕</button>
+    </div>
     
     <form (ngSubmit)="calculateFutureRating()" #ratingForm="ngForm">
       <div class="form-group">
