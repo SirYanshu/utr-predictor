@@ -1,11 +1,31 @@
 services:
+  # Proxy Service (handles UTR API authentication)
   - type: web
-    name: angular-ssr
+    name: utr-proxy
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build:ssr
+    buildCommand: cd utr-proxy && npm install express cors node-fetch
+    startCommand: node utr-proxy/proxy-server.production.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_URL
+        value: https://utr-predictor.onrender.com
+    autoDeploy: true
+
+  # Frontend Service (Angular SSR)
+  - type: web
+    name: utr-predictor
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
     startCommand: node dist/utr-predictor/server/server.mjs
     envVars:
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 10000
     autoDeploy: true
