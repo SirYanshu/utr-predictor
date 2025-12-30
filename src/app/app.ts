@@ -1,8 +1,10 @@
 import { RouterOutlet } from '@angular/router';
-
-import { Component, signal, computed } from '@angular/core';
+import { Component, signal, computed, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClientModule } from '@angular/common/http';
+import { UtrApiService } from './utr-api.service';
+import { TennisWrappedComponent } from './tennis-wrapped.component';
 
 interface Match {
   datetime: Date;
@@ -14,6 +16,7 @@ interface Match {
   opponentGamesWon: number;
   totalGames: number;
   winPercentage: string;
+  setScores?: string;
 }
 
 interface CalculationResult {
@@ -30,18 +33,36 @@ interface CalculationResult {
   imports: [
     CommonModule,
     FormsModule,
-    RouterOutlet
+    RouterOutlet,
+    HttpClientModule,
+    TennisWrappedComponent
   ],
   templateUrl: './app.html',
-  styleUrl: './app.css'
+  styleUrl: './app.css',
+  providers: [UtrApiService]
 })
-export class App {
+export class App implements OnInit {
+  // ViewChild for Tennis Wrapped component
+  @ViewChild(TennisWrappedComponent) wrappedComponent!: TennisWrappedComponent;
+  
+  // Authentication state
+  isAuthenticated = signal<boolean>(false);
+  jwtToken = signal<string>('');
+  showAuthSection = signal<boolean>(true);
+  authMessage = signal<string>('');
+  authMessageType = signal<'success' | 'error' | 'info' | ''>('');
+  
+  // Player data
+  playerId = signal<string>('');
+  isLoadingData = signal<boolean>(false);
+  
   // Using Angular signals for reactive state management
   matchData = signal<Match[]>([]);
+  ratingHistory = signal<any[]>([]); // For week-by-week rating history
   currentRating = signal<number>(0);
   uploadStatus = signal<string>('');
   uploadStatusType = signal<'success' | 'error' | 'loading' | ''>('');
-  showMatchHistory = signal<boolean>(false);
+  showActionButtons = signal<boolean>(false);
   showCalculator = signal<boolean>(false);
   
   // Form fields
@@ -66,213 +87,164 @@ export class App {
       (this.matchData().reduce((sum, match) => sum + match.opponentUTR, 0) / this.totalMatches()).toFixed(2) : '0'
   );
 
-  onFileSelected(event: any): void {
-    const file = event.target.files[0];
-    if (file && file.type === 'text/html') {
-      this.handleFileUpload(file);
-    }
-  }
+  constructor(private utrApiService: UtrApiService) {}
 
-  onFileDrop(event: DragEvent): void {
-    event.preventDefault();
-    const files = event.dataTransfer?.files;
-    if (files && files.length > 0 && files[0].type === 'text/html') {
-      this.handleFileUpload(files[0]);
-    }
-  }
-
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-  }
-
-  private handleFileUpload(file: File): void {
-    this.uploadStatus.set('Processing file...');
-    this.uploadStatusType.set('loading');
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const htmlContent = e.target?.result as string;
-        const parsedData = this.parseHtmlContent(htmlContent);
-        this.matchData.set(parsedData);
-        
-        if (parsedData.length > 0) {
-          this.uploadStatus.set(`Successfully loaded ${parsedData.length} matches!`);
-          this.uploadStatusType.set('success');
-          this.showMatchHistory.set(true);
-          this.showCalculator.set(true);
-          this.calculateCurrentRating();
-        } else {
-          this.uploadStatus.set('No match data found in the uploaded file.');
-          this.uploadStatusType.set('error');
-        }
-      } catch (error) {
-        this.uploadStatus.set(`Error processing file: ${error}`);
-        this.uploadStatusType.set('error');
+  ngOnInit(): void {
+    // Check if user already has a token
+    if (this.utrApiService.isAuthenticated()) {
+      const token = this.utrApiService.getToken();
+      if (token) {
+        this.jwtToken.set(token);
+        this.isAuthenticated.set(true);
+        this.showAuthSection.set(false);
+        this.authMessage.set('Already authenticated! Enter your Player ID or search for your profile.');
+        this.authMessageType.set('success');
       }
-    };
-    reader.readAsText(file);
+    }
   }
 
-  private parseHtmlContent(htmlContent: string): Match[] {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlContent, 'text/html');
-    const scoreCards = doc.querySelectorAll('div.score-card');
-    
-    const matches: any[] = [];
-    
-    scoreCards.forEach(card => {
-      try {
-        const dateElement = card.querySelector('span.scorecard__dateTimeText__1n0hM');
-        const teamDivs = card.querySelectorAll('div.team.aic');
+  /**
+   * Set JWT token manually (from browser cookies or manual entry)
+   */
+  setAuthToken(): void {
+    const token = this.jwtToken().trim();
+    if (!token) {
+      this.authMessage.set('Please enter a valid JWT token');
+      this.authMessageType.set('error');
+      return;
+    }
+
+    this.utrApiService.setToken(token);
+    this.isAuthenticated.set(true);
+    this.showAuthSection.set(false);
+    this.authMessage.set('Successfully authenticated! Now enter your Player ID or search for your profile.');
+    this.authMessageType.set('success');
+  }
+
+  /**
+   * Search for player by name
+   */
+  searchPlayer(): void {
+    // Removed - no longer needed
+  }
+
+  /**
+   * Select a player from search results
+   */
+  selectPlayer(player: any): void {
+    // Removed - no longer needed
+  }
+
+  /**
+   * Load player data from UTR API
+   */
+  loadPlayerData(): void {
+    const id = this.playerId().trim();
+    if (!id) {
+      this.uploadStatus.set('Please enter a Player ID');
+      this.uploadStatusType.set('error');
+      return;
+    }
+
+    if (!this.isAuthenticated()) {
+      this.uploadStatus.set('Please authenticate first by entering your JWT token');
+      this.uploadStatusType.set('error');
+      return;
+    }
+
+    this.uploadStatus.set('Loading player data...');
+    this.uploadStatusType.set('loading');
+    this.isLoadingData.set(true);
+    this.showActionButtons.set(false);
+    this.showCalculator.set(false);
+
+    // First, get the player profile
+    this.utrApiService.getPlayerProfile(id).subscribe({
+      next: (profile) => {
+        this.currentRating.set(profile.singlesUtr || 0);
         
-        if (!dateElement || teamDivs.length < 2) return;
-        
-        const dateText = dateElement.textContent?.trim() || '';
-        const dateParts = dateText.split('|');
-        let matchDate: string;
-        
-        if (dateParts.length >= 2) {
-          const timePart = dateParts[0].trim();
-          const datePart = dateParts[1].trim();
-          matchDate = `${datePart} ${timePart}`;
-        } else {
-          matchDate = dateText;
-        }
-        
-        const players: any[] = [];
-        teamDivs.forEach(teamDiv => {
-          const playerNameElement = teamDiv.querySelector('a.player-name');
-          const utrElement = teamDiv.querySelector('div.utr');
-          const scoresContainer = teamDiv.querySelectorAll('div.scores-conatiner');
-          
-          if (playerNameElement && utrElement) {
-            const playerName = playerNameElement.textContent?.trim() || '';
-            const utr = utrElement.textContent?.trim() || '0';
+        // Then get their match results
+        this.utrApiService.getPlayerResults(id).subscribe({
+          next: (results) => {
+            const matches = this.utrApiService.parseUTRResults(results, profile);
+            this.matchData.set(matches);
             
-            const gameScores: string[] = [];
-            scoresContainer.forEach(container => {
-              const scoreItems = container.querySelectorAll('div.score-item');
-              scoreItems.forEach(item => {
-                let score = item.textContent?.trim() || '';
-                if (score.length > 1) {
-                  score = score[0];
-                }
-                gameScores.push(score);
-              });
+            // Try to fetch rating history (Power feature)
+            this.utrApiService.getRatingHistory(id).subscribe({
+              next: (history) => {
+                console.log('Rating history data:', history);
+                this.ratingHistory.set(history);
+              },
+              error: (historyError) => {
+                console.warn('Rating history not available:', historyError);
+                // Continue without rating history
+              }
             });
             
-            players.push({
-              name: playerName,
-              utr: parseFloat(utr),
-              scores: gameScores
-            });
+            if (matches.length > 0) {
+              this.uploadStatus.set(`Successfully loaded ${matches.length} matches for ${profile.firstName} ${profile.lastName}!`);
+              this.uploadStatusType.set('success');
+              this.showActionButtons.set(true);
+            } else {
+              this.uploadStatus.set('No match data found for this player.');
+              this.uploadStatusType.set('error');
+            }
+            this.isLoadingData.set(false);
+          },
+          error: (error) => {
+            this.uploadStatus.set(`Failed to load match results: ${error.message || 'Unknown error'}`);
+            this.uploadStatusType.set('error');
+            this.isLoadingData.set(false);
+            console.error('Results error:', error);
           }
         });
-        
-        if (players.length === 2) {
-          matches.push({
-            date: matchDate,
-            player1: players[0],
-            player2: players[1]
-          });
-        }
-      } catch (error) {
-        console.error('Error parsing match:', error);
+      },
+      error: (error) => {
+        this.uploadStatus.set(`Failed to load player profile: ${error.message || 'Unknown error'}`);
+        this.uploadStatusType.set('error');
+        this.isLoadingData.set(false);
+        console.error('Profile error:', error);
       }
     });
-    
-    return this.processMatches(matches);
   }
 
-  private processMatches(rawMatches: any[]): Match[] {
-    const processedMatches: Match[] = [];
-    
-    rawMatches.forEach(match => {
-      try {
-        const timestamp = this.parseMatchDate(match.date);
-        
-        let player1GamesWon = 0;
-        let player2GamesWon = 0;
-        
-        if (match.player1.scores && match.player2.scores) {
-          for (let i = 0; i < Math.min(match.player1.scores.length, match.player2.scores.length); i++) {
-            const p1Score = parseInt(match.player1.scores[i]);
-            const p2Score = parseInt(match.player2.scores[i]);
-            
-            if (!isNaN(p1Score) && !isNaN(p2Score)) {
-              if (p1Score + p2Score === 1) {
-                player1GamesWon += p1Score * 2;
-                player2GamesWon += p2Score * 2;
-              } else {
-                player1GamesWon += p1Score;
-                player2GamesWon += p2Score;
-              }
-            }
-          }
-        }
-        
-        const totalGames = player1GamesWon + player2GamesWon;
-        if (totalGames > 0) {
-          processedMatches.push({
-            datetime: timestamp,
-            playerName: match.player1.name,
-            opponentName: match.player2.name,
-            playerUTR: match.player1.utr,
-            opponentUTR: match.player2.utr,
-            playerGamesWon: player1GamesWon,
-            opponentGamesWon: player2GamesWon,
-            totalGames: totalGames,
-            winPercentage: (player1GamesWon / totalGames * 100).toFixed(1)
-          });
-        }
-      } catch (error) {
-        console.error('Error processing match:', error);
-      }
-    });
-    
-    return processedMatches.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+  /**
+   * Logout and clear authentication
+   */
+  logout(): void {
+    this.utrApiService.logout();
+    this.isAuthenticated.set(false);
+    this.jwtToken.set('');
+    this.showAuthSection.set(true);
+    this.playerId.set('');
+    this.matchData.set([]);
+    this.showActionButtons.set(false);
+    this.showCalculator.set(false);
+    this.authMessage.set('Logged out successfully');
+    this.authMessageType.set('info');
   }
 
-  private parseMatchDate(dateString: string): Date {
-    try {
-      const today = new Date();
-      const parts = dateString.split(' ');
-      
-      if (parts.length >= 3) {
-        const month = parts[0];
-        const day = parseInt(parts[1]);
-        const time = parts.slice(2).join(' ');
-        
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const monthIndex = monthNames.indexOf(month);
-        
-        if (monthIndex !== -1) {
-          let year = today.getFullYear();
-          
-          const testDate = new Date(year, monthIndex, day);
-          if (testDate > today) {
-            year -= 1;
-          }
-          
-          const dateStr = `${year}-${(monthIndex + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')} ${time}`;
-          return new Date(dateStr);
-        }
-      }
-      
-      return new Date(dateString);
-    } catch (error) {
-      return new Date();
+  openTennisWrapped(): void {
+    if (this.wrappedComponent) {
+      // Pass the rating history data when opening
+      this.wrappedComponent.open(this.ratingHistory());
     }
   }
 
-  private calculateCurrentRating(): void {
-    const matches = this.matchData();
-    if (matches.length > 0) {
-      const rating = matches.reduce((sum, match) => sum + match.playerUTR, 0) / matches.length;
-      this.currentRating.set(rating);
-    }
+  openUTRPredictor(): void {
+    this.showCalculator.set(true);
+    // Scroll to calculator
+    setTimeout(() => {
+      const calculatorElement = document.querySelector('.calculator-overlay');
+      if (calculatorElement) {
+        calculatorElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  }
+
+  closeUTRPredictor(): void {
+    this.showCalculator.set(false);
+    this.resetForm();
   }
 
   calculateFutureRating(): void {
