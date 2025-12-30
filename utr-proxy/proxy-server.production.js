@@ -3,7 +3,7 @@ const cors = require('cors');
 const fetch = require('node-fetch');
 
 const app = express();
-const PORT = process.env.PROXY_PORT || 3000;
+const PORT = process.env.PORT || 10000; // FIXED: Use Render's PORT env variable
 const UTR_API_BASE = 'https://api.utrsports.net/v4';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:4200';
 const NODE_ENV = process.env.NODE_ENV || 'production';
@@ -121,7 +121,7 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`
 ╔════════════════════════════════════════════╗
 ║   UTR API Proxy Server                     ║
@@ -129,7 +129,7 @@ app.listen(PORT, () => {
 ║   Status: Running ✓                        ║
 ║   Environment: ${NODE_ENV.padEnd(28)}║
 ║   Port: ${PORT.toString().padEnd(34)}║
-║   Frontend: ${FRONTEND_URL.substring(0, 28).padEnd(28)}║
+║   Frontend: ${(FRONTEND_URL.substring(0, 28)).padEnd(28)}║
 ║   Target: ${UTR_API_BASE.padEnd(28)}║
 ╚════════════════════════════════════════════╝
   `);
